@@ -1,0 +1,358 @@
+---
+title: "GAPMINDER | Women's health 1990 - 2019"
+format: dashboard
+theme: minty
+
+---
+```{python}
+# Imports
+import pandas as pd
+import plotly.express as px
+import itables
+import country_converter as cc
+import numpy as np
+
+# Load the data
+
+# female life expectancy
+life_exp = pd.read_csv("life_expectancy_female.csv")
+
+# maternal mortality rate
+mort_rate = pd.read_csv("mmr_ihme.csv")
+
+# children per woman
+children_per_woman = pd.read_csv("children_per_woman_total_fertility.csv")
+
+
+# creating long versions of the dataframes
+# female life exp
+life_exp_long = life_exp.melt(
+    id_vars="country", var_name="year", value_name="life_expectancy"
+)
+# maternal mortality rate
+mort_rate_long = mort_rate.melt(
+    id_vars="country", var_name="year", value_name="maternal_mortality_rate"
+)
+
+# children per woman
+children_per_woman_long = children_per_woman.melt(
+    id_vars="country", var_name="year", value_name="children_per_woman"
+)
+
+# I want to have the "year" variable as an integer in every dataframe
+life_exp_long["year"] = life_exp_long["year"].astype(int)
+
+mort_rate_long["year"] = mort_rate_long["year"].astype(int)
+
+children_per_woman_long["year"] = children_per_woman_long["year"].astype(int)
+
+# query the data to only have data from 1990 to 2015, the gap I'm interested in
+life_exp_long = life_exp_long.query("year >= 1990 & year <= 2015")
+
+mort_rate_long = mort_rate_long.query("year >= 1990 & year <= 2015")
+
+children_per_woman_long = children_per_woman_long.query("year >= 1990 & year <= 2015")
+
+# merging the dataframes to have a single one in long format
+merged_data = pd.merge(
+    life_exp_long, mort_rate_long, on=["country", "year"], how="inner"
+)
+
+merged_data = pd.merge(
+    merged_data, children_per_woman_long, on=["country", "year"], how="inner"
+)
+
+# adding continent information
+merged_data["continent"] = cc.convert(names=merged_data["country"], to="continent")
+
+# querying for the rows where it could not assign a continent
+# merged_data.query("continent == 'not found'")
+
+# the instances all come from UAE, I can replace UAE
+merged_data["country"] = merged_data["country"].replace({"UAE": "United Arab Emirates"})
+
+# I repeat the process for the continent
+# adding continent information
+merged_data["continent"] = cc.convert(names=merged_data["country"], to="continent")
+
+# querying the data for 2015
+merged_2015 = merged_data.query("year == 2015")
+
+# finding for each continent the country with the highest mortality rate in 2015
+highest_mortality_2015 = merged_2015.loc[
+    merged_2015.groupby("continent")["maternal_mortality_rate"].idxmax()
+]
+# dropping a column
+highest_mortality_2015 = highest_mortality_2015.drop(columns=["children_per_woman"])
+
+# renaming the variables to have a prettier table
+highest_mortality_2015 = highest_mortality_2015.rename(
+    columns={
+        "country": "Country",
+        "year": "Year",
+        "life_expectancy": "Life expectancy",
+        "maternal_mortality_rate": "Maternal mortality rate",
+        "continent": "Continent",
+    }
+)
+
+
+# lowest mortality rate
+lowest_mortality_2015 = merged_2015.loc[
+    merged_2015.groupby("continent")["maternal_mortality_rate"].idxmin()
+]
+# dropping a column
+lowest_mortality_2015 = lowest_mortality_2015.drop(columns=["children_per_woman"])
+
+
+lowest_mortality_2015 = lowest_mortality_2015.rename(
+    columns={
+        "country": "Country",
+        "year": "Year",
+        "life_expectancy": "Life expectancy",
+        "maternal_mortality_rate": "Maternal mortality rate",
+        "continent": "Continent",
+    }
+)
+
+```
+
+# Maternal mortality rate
+
+## {height="50%"}
+### {.tabset}
+
+#### Highest
+```{python}
+# table for 2015, sorted by maternal mortality rate
+itables.show(
+    highest_mortality_2015.sort_values(by="Maternal mortality rate", ascending=False)
+)
+```
+
+#### Lowest
+```{python}
+# table for 2015, sorted by maternal mortality rate
+itables.show(
+    lowest_mortality_2015.sort_values(by="Maternal mortality rate", ascending=False)
+)
+```
+
+## Row 2 {height="50%"}
+
+Maternal mortality rate (MMR) is defined as the number of maternal deaths per 100'000 live births. It can be due to complications of pregnancy or childbirth itself. 
+Here the definition of the WHO: "The death of a woman while pregnant or within 42 days of termination of pregnancy, irrespective of the duration and site of the pregnancy, from any cause related to or aggravated by the pregnancy or its management, but not from accidental or incidental causes."
+Multiple factors can influence MMR, such as access to healthcare, the quality of the healthcare system and many others. 
+When we look at the highest MMR per continent in 2015, we see immediately two huge gaps. The first is between Europe and Oceania/Asia. From around 30 the value becomes 10-times higher. The second gap is from Oceania/Asia to Africa and America. Here the value increases again, from around 300 to over 500. This means that the highest values per continent vary across quite a wide range, with the highest values being almost 20-times higher than the lowest. This also reflects the differences across continents regarding life expectancy (also pictured). When looking at the lowest values we again see Africa at the top and Europe at the very bottom. Here the highest value (34.4) is even over 25-times higher than the lowest. When comparing the highest value to the lowest one per continent it becomes obvious that a lot can still be done to improve, especially in Africa.
+
+# Number of children per woman
+
+## Row 1 {height="10%}
+
+```{python}
+# mean number of children per woman
+mean_children = round(merged_2015["children_per_woman"].mean(),2)
+# highest number of children per woman
+max_children = round(merged_2015["children_per_woman"].max(),2)
+# lowest number of children per woman
+min_children = round(merged_2015["children_per_woman"].min(),2)
+```
+
+::: {.valuebox color="#FF6F61" title="Mean number of children per woman" icon = "calculator"}
+
+`{python} str(mean_children)`
+
+:::
+
+::: {.valuebox color="#6A7FDB" title="Lowest number of children per woman" icon="arrow-down"} 
+
+`{python} str(min_children)`
+
+:::
+
+::: {.valuebox color="#A3A3A3" title="Highest number of children per woman" icon = "arrow-up"}
+
+`{python} str(max_children)`
+
+:::
+## Row 1 {.tabset}
+
+### 2015
+```{python}
+# making a graph for the number of children per woman in 2015
+children_2015 = px.strip(
+    merged_2015,
+    y="children_per_woman",
+    color="continent",
+    hover_data="country",
+    title="Children per woman in 2015",
+    labels={
+        "children_per_woman": "Number of children per woman",
+        "continent": "Continent",
+    },
+)
+
+children_2015.show()
+```
+
+### 1990
+
+```{python}
+# making a graph for the number of children per woman in 1990
+# querying for 1990
+merged_1990 = merged_data.query("year == 1990")
+
+# graph
+children_1990 = px.strip(
+    merged_1990,
+    y="children_per_woman",
+    color="continent",
+    hover_data="country",
+    title="Children per woman in 1990",
+    labels={
+        "children_per_woman": "Number of children per woman",
+        "continent": "Continent",
+    },
+)
+
+children_1990.show()
+```
+
+### Comment
+
+Looking at the distribution of number of children per woman in 1990, we see a big spread in Asia. Some countries have some relatively high number but at the same time some countries show values smaller than 2. Africa is less spread, but on average higher. Europe has the lowest average and is very densely concentrated in the lower range. America is also quite spread similarly to Oceania. The situation for 2025 looks quite different. In general we could say all continents moved a toward the bottom, even if to different degrees. Asian countries present a much smaller spread, with the highest value being less than 6 (compared to over 8 in 1990). Africa is somewhat more spread compared to 1990 and with now a bigger gap compared to Asia. Europe is even more densely condensed and the highest value is Monaco and not Albania anymmore. America also shows now much less spread. Oceania, on the other hand, present less spread than 1990 but yet more dispersed than America. In general is not surprising seeing Africa with the highest average and Europe with the lowest, as it matches what is normally heard even in the news.
+I think a visualization like this help understand better the situation compared to a bar chart, as we can visually appreaciate how some continents are bigger than others. For example in Oceania we have way less countries than in Africa. Just by looking at the average we would have missed this. 
+
+
+## Row 2
+
+```{python}
+# creating a new column with iso3 codes  to plot a map
+merged_2015["iso3"] = cc.convert(names=merged_2015["country"], to="ISO3")
+
+# making a map for number of children per woman
+map_fig = px.choropleth(
+    merged_2015,
+    locations="iso3",
+    color="children_per_woman",
+    hover_name="country",
+    color_continuous_scale=[
+        "#d9f0e1",
+        "#a6dba0",
+        "#5aae61",
+        "#1b7837",
+    ],
+    title="Number of children per woman in 2015",
+    labels={"children_per_woman": "Children per woman"},
+)
+
+map_fig.show()
+
+```
+
+# Life expectancy
+
+## {height="15%"}
+
+```{python}
+mean_life = round(merged_2015["life_expectancy"].mean(),2)
+max_life = round(merged_2015["life_expectancy"].max(),2)
+min_life = round(merged_2015["life_expectancy"].min(),2)
+```
+
+::: {.valuebox color="#FF6F61" title="Mean life expectancy" icon = "calculator"}
+
+`{python} str(mean_life)`
+
+:::
+
+::: {.valuebox color="#6A7FDB" title="Lowest life expectancy" icon="arrow-down"} 
+
+`{python} str(min_life)`
+
+:::
+
+::: {.valuebox color="#A3A3A3" title="Highest life expectancy" icon = "arrow-up"}
+
+`{python} str(max_life)`
+
+:::
+
+## Row 2
+```{python}
+# computing average life expectancy per continent over time
+continent_avg = (
+    merged_data.groupby(["continent", "year"])["life_expectancy"].mean().reset_index()
+)
+
+# making an interactive graph of life expectancy over time
+life_exp_time = px.bar(
+    continent_avg,
+    x="continent",
+    y="life_expectancy",
+    animation_frame="year",
+    color="continent",
+    labels={
+        "life_expectancy": "Life expectancy",
+        "continent": "Continent",
+        "year": "Year",
+    },
+    title="Life expectancy over time",
+)
+life_exp_time.show()
+```
+
+# What does everything tell us?
+
+## Row 1 {.tabset}
+
+### MMR vs Life expectancy
+```{python}
+# plotting maternal mortality rate against life expectancy
+mortality_figure = px.scatter(
+    merged_data,
+    x="life_expectancy",
+    y="maternal_mortality_rate",
+    color="continent",
+    animation_frame="year",
+    title=" Maternal mortality rate against against life expectancy in 2015",
+    labels={
+        "life_expectancy": " Life expectancy",
+        "maternal_mortality_rate": "Maternal mortality rate",
+        "continent": "Continent",
+    },
+    hover_name="country",
+)
+mortality_figure.show()
+
+```
+
+### Comment
+
+At the life expectancy increases we see a decrease in maternal mortality rate (MMR), as expected. Obviously life expectancy can't continue to improve endelessly because of biological contraints. MMR can however become very close to 0.
+As we move across years we see how in general the majority of data points are moving to the right and toward the bottom. Interestingly, we see a few data points moving fast left and then back to the right without moving up or down. This means the life expectancy decreased dramatically very fast without a change in MMR. This, however, seem to move back quite fast. We can imagine that by looking at those countries specifically and the year this change happened we could find the reason being wars or mabye huge natural catastrophes. The distribution of the data points belonging to the different continents matches what we have seen so far, with Europe showing very high life expectancy and low MMR and for example Africa showing a huge spread across the graph. 
+
+## Row 2 {.tabset}
+
+### MMR vs number of children
+```{python}
+figure_relationship = px.scatter(
+    merged_data,
+    x="children_per_woman",
+    y="maternal_mortality_rate",
+    animation_frame="year",
+    color="continent",
+    hover_name="country",
+    labels={
+        "children_per_woman": "Number of children per woman",
+        "maternal_mortality_rate": "Maternal mortality rate",
+        "continent": "Continent",
+    },
+    title="Evolution of maternal mortality rate and number of children per woman",
+)
+figure_relationship.show()
+```
+
+### Comment
+
+As we move across time we see how the tendency is for the data points to move to the left and toward the bottom, meaning a lower number of children per woman and a lower maternal mortality rate (MMR). As the economic situation of one country improves the healthcare system can also improve and work effectively toward a decreased MMR. A lower MMR is also normally seen in countries where woman tend to have less children. However, this is not a complete picture, because we are just looking at two variables regarding women's health. We are not looking at their education level, GDP per capita and other very useful data. This graph shows nicely how MMR and the average number of children per woman do correlate and evolved in the timespan going from 1990 to 2015. 
