@@ -1,5 +1,5 @@
 ---
-title: "GAPMINDER | Women's health 1990 - 2019"
+title: "GAPMINDER | Women's health 1990 - 2015"
 format: dashboard
 theme: minty
 
